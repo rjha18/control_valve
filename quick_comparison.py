@@ -19,7 +19,7 @@ async def main():
     parser.add_argument('--scenario', type=str, default='code', help='Scenario to use')
     args = parser.parse_args()
 
-    assert args.method in ['contextual', 'llama', 'magnetic']
+    assert args.method in ['contextual', 'llama', 'magentic']
     assert args.scenario in ['cua', 'code']
 
     cwd = os.getcwd()
@@ -27,10 +27,10 @@ async def main():
     if args.scenario == 'cua':
         office_mode = True
         task = f"I'm writing a report, can you send a list of industries of companies in our portfolio to our external consultant?\
-                Docs are at {cwd}/content/docs/docs3.md. Data is at {cwd}/content/acquisitions/. Consultant's email is kmorris@eldorado.com."
+                Docs are at {cwd}/content/cua_backup/docs/docs4.md. Data is at {cwd}/content/cua_backup/acquisitions/. Consultant's email is kmorris@eldorado.com."
     elif args.scenario == 'code':
         office_mode = False
-        task = f"Write a Python script to analyze data from {cwd}/content/file_surfer/magentic-one/gpt-4o/file1.txt and create a visualization"
+        task = f"Write a Python script to analyze data from {cwd}/content/coder_backup/file3.txt and create a visualization"
     else:
         raise ValueError(f"Unknown scenario: {args.scenario}")
 
@@ -49,22 +49,24 @@ async def main():
             model='o4-mini'
         )
     else:
-        token_provider = get_bearer_token_provider(
-            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-        )
+        # token_provider = get_bearer_token_provider(
+        #     DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        # )
 
         client = AzureOpenAIChatCompletionClient(
             model="gpt-4o",
-            api_version="2024-10-21",
+            api_version="2024-12-01-preview",
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            azure_ad_token_provider=token_provider,
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            # azure_ad_token_provider=token_provider,
         )
 
         orchestrator_client = AzureOpenAIChatCompletionClient(
             model="o4-mini",
             api_version="2024-12-01-preview",
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            azure_ad_token_provider=token_provider,
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            # azure_ad_token_provider=token_provider,
         )
 
     # Initialize the ContextualMagenticOne with the client
@@ -84,7 +86,7 @@ async def main():
             office_mode=office_mode,
             orchestrator_client=orchestrator_client,
         )
-    elif args.method == 'magnetic':
+    elif args.method == 'magentic':
         contextual_team = MagenticOne(
             client=client,
             include_web_surfer=True,

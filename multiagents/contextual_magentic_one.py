@@ -101,12 +101,14 @@ class ContextualMagenticOne(MagenticOneGroupChat):
         executor = CodeExecutorAgent(
             "Executor", 
             code_executor=LocalCommandLineCodeExecutor(),
+            sources=['ContextualMAOrchestrator'],
             orchestrator="contextual-magentic-one",
             model=client.model_info["family"],
             input_type=input_type,
             error_type=error_type,
             query_num=query_num,
             trial_num=trial_num,
+            contextual_mode=True,
         )
         em = AssistantAgent("Emailer", model_client=client, 
                             description="An agent that can send emails.",

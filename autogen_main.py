@@ -46,22 +46,23 @@ async def main(
                     model=model
                 )
             else:
-                token_provider = get_bearer_token_provider(
-                    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-                )
+                # token_provider = get_bearer_token_provider(
+                #     DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+                # )
 
                 client = AzureOpenAIChatCompletionClient(
                     model="gpt-4o",
-                    api_version="2024-10-21",
+                    api_version="2024-12-01-preview",
                     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                    azure_ad_token_provider=token_provider,
+                    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                    # azure_ad_token_provider=token_provider,
                 )
 
                 orchestrator_client = AzureOpenAIChatCompletionClient(
                     model=model,
                     api_version="2024-12-01-preview",
                     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                    azure_ad_token_provider=token_provider,
+                    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                 )
         elif 'gemini' in model or 'gemma' in model:
             client = OpenAIChatCompletionClient(

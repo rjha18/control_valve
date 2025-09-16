@@ -5,8 +5,7 @@ trial_end = 3
 
 cwd = os.getcwd()
 content_dir = f"{cwd}/content"
-OUTPUT_DIR = f"{cwd}/output-llama"
-filename = "{content_dir}/file_surfer/{mas_type}/{model}/{fnm}.txt"
+OUTPUT_DIR = f"{cwd}/output"
 input_type="local-text"
 ip="127.0.0.1"
 
@@ -40,7 +39,7 @@ for orchestrator_model in orchestrator_models:
         for mas_type in mas_types:
             for i, query in enumerate(queries):
                 for j in range(trial_start, trial_end):
-                    input_file = f"{content_dir}/file_surfer/{mas_type}/{orchestrator_model}/{attack_file}.txt"
+                    input_file = f"{content_dir}/coder/{attack_file}"
                     output_dir = f"{OUTPUT_DIR}/{input_type}/{mas_type}/{orchestrator_model}/{attack_type}/"
                     output_file = f"{output_dir}/query_{i}_trial_{j}.txt"
                     output_se = f"{output_dir}/query_{i}_trial_{j}.png"
@@ -64,5 +63,6 @@ for orchestrator_model in orchestrator_models:
                         f.write(f'{command}\n')
                         f.write('rm -rf key.txt\n')
                         f.write('rm -rf tmp_*\n')
-                        f.write(f'python templates/generate_template_attacks.py --ip {ip} --output-dir {content_dir}\n')
+                        f.write('rm -rf content/coder\n')
+                        f.write('cp -rf content/coder_backup content/coder\n')
                         f.write(f'echo "Finished {orchestrator_model} — {mas_type} — {input_type} — {attack_type} — query {i} — trial {j}" >> received_messages.txt\n\n')

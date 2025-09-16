@@ -5,6 +5,7 @@ from autogen_agentchat.agents import UserProxyAgent, AssistantAgent
 from multiagents.constrained_utils.prompts import EMAILER_SYSTEM_PROMPT
 # from autogen_agentchat.agents import CodeExecutorAgent
 from multiagents.gemini.code_executor_agent import CodeExecutorAgent
+from multiagents.gemini.emailer_agent import EmailerAgent
 from autogen_agentchat.base import ChatAgent
 from autogen_agentchat.teams import MagenticOneGroupChat
 from autogen_core import CancellationToken
@@ -155,15 +156,14 @@ class MagenticOne(MagenticOneGroupChat):
             "Executor", 
             code_executor=LocalCommandLineCodeExecutor(),
             orchestrator="magentic-one",
+            # sources=['MagenticOneOrchestrator'],
             model=client.model_info["family"],
             input_type=input_type,
             error_type=error_type,
             query_num=query_num,
             trial_num=trial_num,
         )
-        em = AssistantAgent("Emailer", model_client=client, 
-                    description="An agent that can send emails.",
-                    system_message=EMAILER_SYSTEM_PROMPT)
+        em = EmailerAgent("Emailer", model_client=client)
 
         if office_mode:
             agents: List[ChatAgent] = [fs, ws, em]
