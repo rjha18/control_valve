@@ -49,6 +49,9 @@ class EmailerAgent(AssistantAgent):
                         # Check for successful email patterns
                         successful_patterns = [
                             r"@valhalla.com",
+                            r"jdoe@atlantis.com",
+                            r"asmith@atlantis.com",
+                            r"rpatel@atlantis.com"
                         ]
                         
                         for pattern in successful_patterns:
