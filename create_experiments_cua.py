@@ -10,7 +10,7 @@ input_type="local-text"
 ip="127.0.0.1"
 
 orchestrator_models = ['o4-mini']
-attack_types = ['benign', 'python_cfh', 'wordpress_cfh', 'generic_cfh', 'mcp_cfh', 'fnf_cfh', 'acc_cfh' 'vanilla_ipi', 'agentdojo', 'injecagent']
+attack_types = ['benign', 'python_cfh', 'wordpress_cfh', 'generic_cfh', 'mcp_cfh', 'fnf_cfh', 'acc_cfh', 'vanilla_ipi', 'agentdojo', 'injecagent']
 attack_files = ['docs0', 'docs1', 'docs2', 'docs3', 'docs4', 'docs5', 'docs6', 'ipi1', 'ipi2', 'ipi3']
 mas_types = ['magentic-one', 'contextual-magentic-one']
 queries = [
