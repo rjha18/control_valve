@@ -1,10 +1,9 @@
 import argparse
 import json
-import logging
 import os
 import re
 import sys
-from typing import Optional
+from typing import Any, Optional
 
 from llamafirewall import (
     AssistantMessage,
@@ -15,47 +14,170 @@ from llamafirewall import (
     Trace,
     UserMessage,
 )
-from openai import AsyncOpenAI
-from oai_alignmentcheck_scanner import *
+import oai_alignmentcheck_scanner  # noqa: F401 - registers OpenAI scanners
 from dotenv import load_dotenv
 
 
-def load_trace(file_path: str, exec_agent: str = "Executor", search_str: str = "TERMINATE") -> Trace:
+ENV_API_KEY = "TOGETHER_API_KEY"
+
+
+def _extract_text_from_content(content: Any) -> str:
+    """
+    Normalize the OpenAI-style content field into a plain string.
+    """
+    if content is None:
+        return ""
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, dict):
+        if "content" in content:
+            return _extract_text_from_content(content["content"])
+        return json.dumps(content, ensure_ascii=False)
+
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(item.get("content", ""))
+                else:
+                    parts.append(json.dumps(item, ensure_ascii=False))
+            else:
+                parts.append(str(item))
+        return "\n".join([part for part in parts if part])
+
+    return str(content)
+
+
+def _get_tool_function_name(tool_call: Any) -> Optional[str]:
+    """
+    Extract the function name from a tool call payload.
+    """
+    if not isinstance(tool_call, dict):
+        return None
+
+    func_val = tool_call.get("function")
+    if isinstance(func_val, str):
+        return func_val
+
+    if isinstance(func_val, dict):
+        name = func_val.get("name")
+        if isinstance(name, str):
+            return name
+
+    name_val = tool_call.get("name")
+    if isinstance(name_val, str):
+        return name_val
+
+    return None
+
+
+def _load_trace_from_json(file_path: str) -> Trace:
+    """
+    Load a trace from an AgentDojo-style JSON transcript.
+    """
+    with open(file_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    messages = payload.get("messages", [])
     trace: Trace = []
-    
-    with open(file_path, 'r', encoding='utf-8') as f:
+    user_added = False
+
+    for message in messages:
+        role = (message.get("role") or "").lower()
+        tool_calls = message.get("tool_calls")
+
+        # Skip system messages entirely.
+        if role == "system":
+            continue
+
+        # Remove assistant messages that invoke tools.
+        if tool_calls:
+            if role == "assistant":
+                for tool_call in tool_calls:
+                    func_name = _get_tool_function_name(tool_call)
+                    if func_name == "post_webpage":
+                        return trace
+                continue
+            else:
+                continue
+
+        # Tool responses are not part of the trace we want to scan.
+        if role == "tool":
+            continue
+
+        text_content = _extract_text_from_content(message.get("content"))
+        if not text_content.strip():
+            continue
+
+        if role == "user":
+            if user_added:
+                # Enforce a single user query.
+                continue
+            trace.append(UserMessage(content=text_content))
+            user_added = True
+            continue
+
+        # Default to treating everything else as assistant output.
+        agent_name = message.get("name") or message.get("role") or "assistant"
+        assistant_content = json.dumps(
+            {
+                "agent_name": agent_name,
+                "message": text_content,
+            },
+            ensure_ascii=False,
+        )
+        trace.append(AssistantMessage(content=assistant_content))
+
+    return trace
+
+
+def _load_legacy_trace(file_path: str, exec_agent: str, search_str: str) -> Trace:
+    """
+    Load a trace from the legacy text transcript format.
+    """
+    trace: Trace = []
+
+    with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
-    
-    # Split content by the message delimiter pattern
-    message_pattern = r'---------- TextMessage \(([^)]+)\) ----------'
+
+    message_pattern = r"---------- TextMessage \(([^)]+)\) ----------"
     parts = re.split(message_pattern, content)
-    
-    # Skip the first part (before any messages) and process pairs of (agent_name, message_content)
+
     for i in range(1, len(parts), 2):
         if i + 1 >= len(parts):
             break
-            
+
         agent_name = parts[i].strip()
         message_content = parts[i + 1].strip()
-        
-        # Skip empty messages
+
         if not message_content:
             continue
-            
-        if agent_name.lower() == 'user':
-            # User message - just use the content directly
+
+        if agent_name.lower() == "user":
             trace.append(UserMessage(content=message_content))
         else:
-            # Assistant message - wrap in JSON format with agent_name and message
             if exec_agent in agent_name and search_str in message_content:
                 break
-            assistant_content = json.dumps({
-                "agent_name": agent_name,
-                "message": message_content
-            }, ensure_ascii=False)
+            assistant_content = json.dumps(
+                {"agent_name": agent_name, "message": message_content},
+                ensure_ascii=False,
+            )
             trace.append(AssistantMessage(content=assistant_content))
-    
+
     return trace
+
+
+def load_trace(file_path: str, exec_agent: str = "Executor", search_str: str = "TERMINATE") -> Trace:
+    """
+    Load a conversation trace, supporting both JSON and legacy text formats.
+    """
+    if file_path.lower().endswith(".json"):
+        return _load_trace_from_json(file_path)
+
+    return _load_legacy_trace(file_path, exec_agent, search_str)
 
 
 def run_alignment_check(trace: Trace, model: str = "llama") -> Optional[ScanResult]:
@@ -87,12 +209,6 @@ def run_alignment_check(trace: Trace, model: str = "llama") -> Optional[ScanResu
         
     firewall = LlamaFirewall(scanner_config)
     return firewall.scan_replay(trace)
-    # return firewall.scan(trace[-1], trace[:-1])
-    try:
-        print("Running alignment check")
-    except Exception as e:
-        print(f"Error running alignment check: {str(e)}")
-        return None
 
 
 def display_scan_result(result: Optional[ScanResult], description: str) -> None:
@@ -156,28 +272,27 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run alignment check with different models")
     parser.add_argument(
         "--model", 
-        type=str, 
+        choices=("llama", "gpt-4o-mini", "o4-mini", "gpt-4o", "gpt-5"),
         required=True,
         help="Model to use for alignment check"
     )
     parser.add_argument(
         "--scenario", 
-        type=str, 
+        choices=("code", "cua"),
         required=True,
         help="Scenario to use for alignment check"
     )
     parser.add_argument(
         "--file", 
-        type=str, 
-        default="/Users/rdj58/code/contextual_flow/example.txt",
-        help="Path to the trace file to analyze"
+        type=str,
+        required=True,
+        help="Path to the trace file to analyze (JSON or legacy text)"
     )
     
     args = parser.parse_args()
     
-    assert args.scenario in ['code', 'cua'], f"Invalid scenario: {args.scenario}"
-    assert args.model in ['llama','gpt-4o-mini', 'o4-mini', 'gpt-4o', 'gpt-5'], f"Invalid model: {args.model}"
-    assert check_environment(args.model), f"Environment is not set for model: {args.model}"
+    if not check_environment(args.model):
+        return 1
     
     
     trace = load_trace(args.file, exec_agent="Executor" if args.scenario == 'code' else "Emailer")
@@ -190,5 +305,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     load_dotenv()
-    ENV_API_KEY: str = "TOGETHER_API_KEY"
     sys.exit(main())

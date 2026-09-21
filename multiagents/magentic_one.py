@@ -168,7 +168,7 @@ class MagenticOne(MagenticOneGroupChat):
         if office_mode:
             agents: List[ChatAgent] = [fs, ws, em]
         else:
-            agents: List[ChatAgent] = [fs, coder, executor, em]
+            agents: List[ChatAgent] = [fs, coder, executor]
             if include_web_surfer:
                 agents.append(ws)
             if include_video_surfer:

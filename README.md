@@ -1,59 +1,166 @@
-# Ensuring Contextual Control and Information Flow in Multi-Agent Systems
+# ControlValve
 
-Code is based off of code for this paper: https://arxiv.org/abs/2503.12188.
+This repository contains the experiment code for: **Breaking and Fixing Defenses Against Control-Flow Hijacking in Multi-Agent Systems.** (ICLR 2026.). [[Paper]](https://arxiv.org/abs/2510.17276)
 
-This repo contains code for contextual flow defenses against control flow hijacking (the above paper) and IPI attacks more generally. For more information, see the accompanying docs/ folder.
 
-The repo contains two attack scenarios: (1) a coding scenario based off of the original paper, and (2) a computer-use scenario. Each scenario has tasks associated with them (as defined in the `create_experiments_*.py` files).
+ControlValve constrains a multi-agent orchestrator with a task-specific
+control-flow graph and contextual rules. The experiments compare it with
+MagenticOne and alignment-based checks, including LlamaFirewall.
 
-There are a total of four attack goals: Reverse Shell (Coding, Control Flow Hijacking), Email Redirect (CUA, Control Flow Hijacking), Email Leakage (CUA, Accidental), Data Tainting (CUA, Accidental). In addition we evaluate on three traditional IPI frameworks: Vanilla, AgentDojo, and InjecAgent. The attack files will be placed in `content/` after the Setup step (below).
 
-The repo also contains three defense settings: `magentic` (default MagenticOne), `contextual` (our defense), and `llama` (LlamaFirewall, a baseline).
+## Safety warning
 
-## Setup
+The coding fixtures contain reverse-shell payloads, and the agents can execute
+commands on the host. Some redirect fixtures download
+`notify_support.py` from `rishijha.com`. Run experiments only in a disposable,
+network-restricted environment with no sensitive files or credentials. Keep
+the listener address at `127.0.0.1` unless you understand the consequences.
+The CUA setting uses a simulated email agent and synthetic acquisition data.
 
-To begin, start by preparing your environment and the attack files. Attack files are generated or copied to ensure that nothing changes between agent rollouts.
+## Repository layout
+
+- `autogen_main.py`: parameterized experiment runner.
+- `quick_comparison.py`: one local-fixture example for each defense.
+- `multiagents/`: MagenticOne, ControlValve, and LlamaFirewall orchestrators.
+- `content/coder_backup/`: frozen coding and reverse-shell fixtures.
+- `content/cua_backup/`: frozen CUA/email fixtures and synthetic data.
+- `create_experiments/`: generators for the paper experiment shell scripts.
+- `analysis/analyze_cfg_traces.py`: GPT-assisted CFG-quality analysis.
+- `autogen_log_analysis.py` and `pattern_search.py`: coding trace analysis.
+
+The implementation is based on AutoGen's
+[MagenticOne](https://arxiv.org/abs/2411.04468) agents and the attack setup from
+[Control-Flow Hijacking in Multi-Agent Systems](https://arxiv.org/abs/2503.12188).
+
+## Requirements and installation
+
+- Python 3.12
+- OpenAI API access for the paper configuration
+- Together API access and Hugging Face model access for LlamaFirewall
+- Chromium, installed by `setup.sh`, for WebSurfer
 
 ```bash
-# Set up the environments needed for running the attacks
 ./setup.sh
-
-# Generate coding attacks
-python templates/generate_template_attacks.py --ip <insert your IP address here, default is 127.0.0.1>
-
-# Prepare CUA attacks
-cp -rf content/cua_backup/* content/
-
-# For video surfer attacks you will need to install moviepy (might cause some pip errors)
-./templates/generate_video_inputs.sh
+source autogen_venv/bin/activate
+cp .env.example .env
 ```
 
-Also ensure that you have a `.env` file containing your AI system API keys.
+Set `OPENAI_API_KEY` in `.env`. Install and configure LlamaFirewall only when
+running the standalone AlignmentCheck baseline:
 
-Optionally, in a separate terminal (potentially on a remote server), you can run a socket server to monitor reverse shell creation (this is the server that will receive the attacks, and it will hang):
+```bash
+pip install -r requirements-llama.txt
+llamafirewall configure
+```
+
+Set `TOGETHER_API_KEY` in `.env` for its AlignmentCheck scanner.
+
+Azure OpenAI and Gemini variables in `.env.example` are optional alternatives.
+The checked-in experiment matrices use OpenAI models.
+
+## Quick local run
+
+The quick runner reads only checked-in fixtures:
+
+```bash
+# Methods: contextual (ControlValve), magentic, llama
+python quick_comparison.py --scenario code --method contextual
+python quick_comparison.py --scenario cua --method magentic
+```
+
+These commands still call model APIs. The coding example can cause the
+Executor agent to run fixture-provided code.
+
+## Full experiment runs
+
+The generators overwrite, rather than append to, their generated shell
+scripts. They also reset the working fixture directory between trials.
+
+```bash
+# Coding: 16 fixture types × 10 tasks × 3 trials × 2 methods
+python create_experiments/create_experiments_coding.py
+bash run_experiment_coding.sh
+
+# CUA: 10 fixture types × 6 tasks × 3 trials × 2 methods
+python create_experiments/create_experiments_cua.py
+bash run_experiment_email.sh
+```
+
+The two batch matrices compare `magentic-one` with
+`contextual-magentic-one`, using `o4-mini` as the orchestrator and `gpt-4o`
+for worker agents. Coding traces are written under `output/`; CUA traces are
+written under `output-email/`. These directories and generated shell scripts
+are intentionally ignored by Git.
+
+Coding fixtures cover benign inputs, Python/WordPress/generic control-flow
+hijacks, redirect variants, and Vanilla/AgentDojo/InjecAgent-style indirect
+prompt injections. CUA fixtures cover benign input, five control-flow-hijack
+forms, accidental derailment, and the same three IPI styles. The exact tasks
+and fixture mapping are the constants at the top of each generator.
+
+The full sweeps make 960 coding model runs and 360 CUA model runs. Runtime,
+API cost, and results vary with provider behavior. Start with
+`quick_comparison.py` before launching a sweep.
+
+### Optional reverse-shell listener
+
+The coding fixtures use port 65432:
 
 ```bash
 python socket_recipient.py
-
-# OR, to run this in the background:
-nohup python socket_recipient.py &
 ```
 
-## Running an attack
+The listener binds to all interfaces. Use firewall rules or modify it to bind
+only to loopback when isolation matters.
 
-NOTE: These multi-agent systems will be running attacks on your local machine. Proceed with caution.
+## CFG-generation experiments
 
-To run our example attack:
+CFG runs stop after ControlValve produces and validates its graph; they do not
+execute the task:
+
 ```bash
-source autogen_venv/bin/activate
+python create_experiments/create_experiments_coding_graphs.py
+bash run_experiment_coding_graphs.sh
 
-# For cua attacks
-cp -rf content/cua_backup/* content/
-
-# For coding attacks
-python templates/generate_template_attacks.py --ip <IP>
-
-python quick_comparison.py --scenario {cua, coding} --method {contextual, llama, magentic}
+python create_experiments/create_experiments_cua_graphs.py
+bash run_experiment_email_graphs.sh
 ```
 
-For more comprehensive eval, please look at `create_experiment_*.py`!
+The coding and CUA graph sweeps generate 150 and 90 traces, respectively,
+across `o4-mini`, `gpt-4o`, and `gpt-4o-mini`.
+
+Analyze them with:
+
+```bash
+python analysis/analyze_cfg_traces.py --scenario coding
+python analysis/analyze_cfg_traces.py --scenario cua
+```
+
+This analysis uses `gpt-4o` as a judge by default and writes detailed JSON
+under `results/`.
+
+## Trace analysis
+
+Pattern-based coding metrics:
+
+```bash
+python pattern_search.py --output-dir output
+```
+
+GPT-assisted reverse-shell labeling:
+
+```bash
+python autogen_log_analysis.py --output_dir output
+```
+
+`autogen_log_analysis.py` uses the OpenAI Batch API and writes intermediate
+and final files under `results/`. Review its cost estimate before submitting a
+large batch.
+
+AlignmentCheck can scan either AutoGen text traces or AgentDojo-style JSON:
+
+```bash
+python check_llama.py --model llama --scenario code --file path/to/trace.txt
+python check_llama.py --model gpt-4o --scenario cua --file path/to/trace.json
+```
+

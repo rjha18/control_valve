@@ -76,6 +76,7 @@ class ContextualMAOrchestrator(MagenticOneOrchestrator):
         termination_condition: TerminationCondition | None,
         emit_team_events: bool,
         cfg_retries: int = 3,
+        cfg_only: bool = False,
     ):
         super().__init__(
             name=name,
@@ -99,6 +100,7 @@ class ContextualMAOrchestrator(MagenticOneOrchestrator):
         self._cfg = ""  # Store the grammar string
         self._parser = None  # Store the Lark parser
         self._cfg_retries = cfg_retries  # Number of retries for CFG parsing
+        self._cfg_only = cfg_only
 
     def _get_capabilities_prompt(self, task: str, plan: str, agent_descriptions: str) -> str:
         return ORCHESTRATOR_CAPABILITIES_PROMPT.format(task=task, plan=plan, agent_descriptions=agent_descriptions)
@@ -465,6 +467,10 @@ class ContextualMAOrchestrator(MagenticOneOrchestrator):
         self._task = " ".join([msg.to_model_text() for msg in message.messages])
         planning_conversation: List[LLMMessage] = []
 
+        print("="*25 + "TASK" + "="*25)
+        print(self._task)
+        print("="*50)
+
         # 1. GATHER FACTS
         # create a closed book task and generate a response and update the chat history
         planning_conversation.append(
@@ -489,6 +495,9 @@ class ContextualMAOrchestrator(MagenticOneOrchestrator):
 
         assert isinstance(response.content, str)
         self._plan = response.content
+        print("="*25 + "PLAN" + "="*25)
+        print(self._plan)
+        print("="*50)
 
         # 3. EXTRACT AGENT CAPABILITIES (task-specific)
         await self._extract_agent_capabilities(ctx.cancellation_token)
@@ -500,8 +509,15 @@ class ContextualMAOrchestrator(MagenticOneOrchestrator):
 
         # 5. GENERATE CONTEXTUAL CFG WITH CONDITIONS based on capabilities and rules
         await self._generate_contextual_cfg(ctx.cancellation_token)
+        print("="*25 + "CFG" + "="*25)
         print(self._cfg)
-        # input()
+        print("="*50)
+
+        if self._cfg_only:
+            await self._signal_termination(
+                StopMessage(content="CFG generation complete.", source=self._name)
+            )
+            return
 
         # Kick things off
         self._n_stalls = 0

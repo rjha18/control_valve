@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+title: "ControlValve"
+type: software
+authors:
+  - family-names: Jha
+    given-names: Rishi
+  - family-names: Triedman
+    given-names: Harold
+  - family-names: Wagle
+    given-names: Justin
+  - family-names: Shmatikov
+    given-names: Vitaly
+repository-code: "https://github.com/rjha18/contextual_flow"
+preferred-citation:
+  type: conference-paper
+  title: "Breaking and Fixing Defenses Against Control-Flow Hijacking in Multi-Agent Systems"
+  authors:
+    - family-names: Jha
+      given-names: Rishi
+    - family-names: Triedman
+      given-names: Harold
+    - family-names: Wagle
+      given-names: Justin
+    - family-names: Shmatikov
+      given-names: Vitaly
+  collection-title: "The Fourteenth International Conference on Learning Representations"
+  year: 2026
+  url: "https://arxiv.org/abs/2510.17276"

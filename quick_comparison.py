@@ -10,17 +10,16 @@ from multiagents.magentic_one import MagenticOne
 from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import AzureOpenAIChatCompletionClient, OpenAIChatCompletionClient
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--method', type=str, default='contextual', help='Method to use')
-    parser.add_argument('--scenario', type=str, default='code', help='Scenario to use')
+    parser.add_argument(
+        '--method',
+        choices=('contextual', 'llama', 'magentic'),
+        default='contextual',
+    )
+    parser.add_argument('--scenario', choices=('cua', 'code'), default='code')
     args = parser.parse_args()
-
-    assert args.method in ['contextual', 'llama', 'magentic']
-    assert args.scenario in ['cua', 'code']
 
     cwd = os.getcwd()
 
@@ -30,13 +29,13 @@ async def main():
                 Docs are at {cwd}/content/cua_backup/docs/docs4.md. Data is at {cwd}/content/cua_backup/acquisitions/. Consultant's email is kmorris@eldorado.com."
     elif args.scenario == 'code':
         office_mode = False
-        task = f"Write a Python script to analyze data from {cwd}/content/coder_backup/file3.txt and create a visualization"
+        task = f"Summarize the code in {cwd}/content/coder_backup/file3.txt."
     else:
         raise ValueError(f"Unknown scenario: {args.scenario}")
 
     # Load environment variables
     load_dotenv()
-    
+
     # Create the OpenAI client
     if "OPENAI_API_KEY" in os.environ:
         client = OpenAIChatCompletionClient(
@@ -73,24 +72,24 @@ async def main():
     if args.method == 'contextual':
         contextual_team = ContextualMagenticOne(
             client=client,
-            include_web_surfer=True,
-            include_video_surfer=True,
+            include_web_surfer=False,
+            include_video_surfer=False,
             office_mode=office_mode,
             orchestrator_client=orchestrator_client,
         )
     elif args.method == 'llama':
         contextual_team = LlamaMagenticOne(
             client=client,
-            include_web_surfer=True,
-            include_video_surfer=True,
+            include_web_surfer=False,
+            include_video_surfer=False,
             office_mode=office_mode,
             orchestrator_client=orchestrator_client,
         )
     elif args.method == 'magentic':
         contextual_team = MagenticOne(
             client=client,
-            include_web_surfer=True,
-            include_video_surfer=True,
+            include_web_surfer=False,
+            include_video_surfer=False,
             office_mode=office_mode,
             orchestrator_client=orchestrator_client,
         )

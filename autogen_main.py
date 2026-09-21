@@ -7,14 +7,11 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 from multiagents.llama_magentic_one import LlamaMagenticOne
 from multiagents.magentic_one import MagenticOne
 from multiagents.contextual_magentic_one import ContextualMagenticOne
-from multiagents.round_robin import RoundRobin
-from multiagents.selector import Selector
 from autogen_agentchat import EVENT_LOGGER_NAME
 from autogen_agentchat.ui import Console
 import logging
 from logging.handlers import RotatingFileHandler
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from autogen_ext.models.openai import AzureOpenAIChatCompletionClient
 
 load_dotenv()
@@ -30,7 +27,8 @@ async def main(
     error_type: str,
     query_num: int,
     trial_num: int,
-    office_mode: bool
+    office_mode: bool,
+    cfg_only: bool,
 ) -> None:
     try:
         if 'gpt-' in model or 'o1' in model or 'o3' in model or 'o4-mini' in model:
@@ -76,6 +74,7 @@ async def main(
                     "family": ModelFamily.GEMINI_1_5_FLASH,
                 },
             )
+            orchestrator_client = client
         else:
             raise ValueError(f"Unsupported model: {model}")
         
@@ -91,7 +90,7 @@ async def main(
                     query_num=query_num,
                     trial_num=trial_num,
                     office_mode=office_mode,
-                    orchestrator_client=orchestrator_client
+                    orchestrator_client=orchestrator_client,
                 )
             elif mas_type == "contextual-magentic-one":
                 agent = ContextualMagenticOne(
@@ -104,7 +103,8 @@ async def main(
                     query_num=query_num,
                     trial_num=trial_num,
                     office_mode=office_mode,
-                    orchestrator_client=orchestrator_client
+                    orchestrator_client=orchestrator_client,
+                    cfg_only=cfg_only,
                 )
             elif mas_type == "llama-magentic-one":
                 agent = LlamaMagenticOne(
@@ -119,38 +119,8 @@ async def main(
                     office_mode=office_mode,
                     orchestrator_client=orchestrator_client
                 )
-            elif mas_type == "round-robin":
-                agent = RoundRobin(
-                    client=client,
-                    max_turns=20,
-                    include_web_surfer=include_web_surfer,
-                    include_video_surfer=include_video_surfer,
-                    input_type=input_type,
-                    error_type=error_type,
-                    query_num=query_num,
-                    trial_num=trial_num
-                )
-            elif mas_type == "swarm":
-                agent = SwarmTeam(
-                    client=client,
-                    max_turns=20,
-                    include_web_surfer=include_web_surfer,
-                    include_video_surfer=include_video_surfer,
-                    input_type=input_type,
-                    error_type=error_type,
-                    query_num=query_num,
-                    trial_num=trial_num
-                )
-            elif mas_type == "selector":
-                agent = Selector(
-                    client=client,
-                    include_web_surfer=include_web_surfer,
-                    include_video_surfer=include_video_surfer,
-                    input_type=input_type,
-                    error_type=error_type,
-                    query_num=query_num,
-                    trial_num=trial_num
-                )
+            else:
+                raise ValueError(f"Unsupported MAS type: {mas_type}")
             await Console(agent.run_stream(task=query))
         except Exception as e:
             print(f"Error during agent execution: {str(e)}")
@@ -192,8 +162,18 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Run MagenticOne.")
     parser.add_argument("--hil_mode", action="store_true", default=False, help="Run in human-in-the-loop mode")
-    parser.add_argument("--query", type=str, help="Query to run (can be text or path to .txt file)")
-    parser.add_argument("--mas_type", type=str, help="Type of MAS to use (round-robin, swarm, selector, or magentic-one)")
+    parser.add_argument(
+        "--query",
+        type=str,
+        required=True,
+        help="Query to run (can be text or path to a text file)",
+    )
+    parser.add_argument(
+        "--mas_type",
+        choices=("magentic-one", "contextual-magentic-one", "llama-magentic-one"),
+        required=True,
+        help="Multi-agent system/defense to evaluate",
+    )
     parser.add_argument("--model", type=str, required=True, help="Model to use for query")
     parser.add_argument("--include_web_surfer", action="store_true", default=False, help="Include WebSurfer in the MAS")
     parser.add_argument("--include_video_surfer", action="store_true", default=False, help="Include VideoSurfer in the MAS")
@@ -202,28 +182,22 @@ if __name__ == "__main__":
     parser.add_argument("--query_num", type=int, help="Which query to run")
     parser.add_argument("--trial_num", type=int, help="Which trial to run")
     parser.add_argument("--office_mode", action="store_true", default=False, help="Run in office mode")
+    parser.add_argument(
+        "--cfg_only",
+        action="store_true",
+        help="Generate and log a ControlValve CFG without executing the task",
+    )
     args = parser.parse_args()
 
-    # Validate query arguments
-    if not args.query:
-        parser.error("Must specify --query")
-
-    if not args.mas_type:
-        parser.error("Must specify --mas_type")
-
-    if not args.model:
-        parser.error("Must specify --model")
+    if args.cfg_only and args.mas_type != "contextual-magentic-one":
+        parser.error("--cfg_only requires --mas_type contextual-magentic-one")
 
     # Process query based on type
-    query = None
-    if args.query == "":
-        query = "What capabilities do you have? Please describe what you can help me with."
-    elif args.query:
-        if os.path.exists(args.query):
-            with open(args.query, "r") as file:
-                query = file.read()
-        else:
-            query = args.query
+    if os.path.exists(args.query):
+        with open(args.query, "r", encoding="utf-8") as file:
+            query = file.read()
+    else:
+        query = args.query
 
     asyncio.run(main(
         args.hil_mode,
@@ -236,5 +210,6 @@ if __name__ == "__main__":
         args.error_type,
         args.query_num,
         args.trial_num,
-        args.office_mode
+        args.office_mode,
+        args.cfg_only,
     ))

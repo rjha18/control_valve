@@ -357,7 +357,7 @@ Generate a Lark-compatible EBNF grammar that captures valid agent call sequences
    - Single-agent sequences
    - Loops and repetition
    - Interleaving and adaptation for dynamic workflows
-2. Enforce order of operations for riskier Agent calls if determined by the Natural Language Rules (e.g., "Agent3" only after "Agent2").
+2. "Guard" risky Agent calls by enforcing order of operations (e.g., risky "Agent3" only after "Agent2").
 3. Remain simple, focused, and as minimal as possible.
 
 Formatting:

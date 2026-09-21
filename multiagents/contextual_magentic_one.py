@@ -85,7 +85,8 @@ class ContextualMagenticOne(MagenticOneGroupChat):
         error_type: str | None = None,
         query_num: int | None = None,
         trial_num: int | None = None,
-        orchestrator_client: ChatCompletionClient | None = None
+        orchestrator_client: ChatCompletionClient | None = None,
+        cfg_only: bool = False,
     ):
         # self.client = client
 
@@ -117,7 +118,7 @@ class ContextualMagenticOne(MagenticOneGroupChat):
         if office_mode:
             agents: List[ChatAgent] = [fs, ws, em]
         else:
-            agents: List[ChatAgent] = [fs, coder, executor, em]
+            agents: List[ChatAgent] = [fs, coder, executor]
             if include_web_surfer:
                 agents.append(ws)
             if include_video_surfer:
@@ -144,6 +145,7 @@ class ContextualMagenticOne(MagenticOneGroupChat):
         self._orchestrator_client = orchestrator_client or client
         self._max_stalls = 3
         self._final_answer_prompt = ORCHESTRATOR_FINAL_ANSWER_PROMPT
+        self._cfg_only = cfg_only
 
         print("Orchestrator Family:", self._orchestrator_client.model_info["family"])
 
@@ -193,6 +195,7 @@ class ContextualMagenticOne(MagenticOneGroupChat):
             output_message_queue,
             termination_condition,
             self._emit_team_events,
+            cfg_only=self._cfg_only,
         )
     
 

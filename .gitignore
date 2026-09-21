@@ -1,4 +1,5 @@
 # Python
+.DS_Store
 data/
 content/file_surfer/
 content/metagpt-data-interpreter/
@@ -18,7 +19,6 @@ __pycache__/
 graphics/
 output*/
 MetaGPT/
-metagpt/
 utils/
 
 # Logs
@@ -45,7 +45,16 @@ keys/
 output_run_1/
 path/
 key.txt
-*successful_code_executions.txt
+*code_executions.txt
+successful_email_sends.txt
 results*/
-!content/video_surfer/audio/temp_speech.mp3
 *.tar.gz
+
+# Generated experiment and analysis artifacts
+run_experiment*.sh
+received_messages.txt
+cfg_analysis*.json
+agentdojo/
+agentdojo_runs/
+reasoning_traces/
+accidental_derailment_examples/
